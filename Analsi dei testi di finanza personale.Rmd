@@ -1,0 +1,224 @@
+---
+title: "Analisi dei testi di finanza personale"
+author: "Tommaso Bergagna"
+date: "10/08/2021"
+output: ioslides_presentation
+---
+
+```{r,message=FALSE,warning=FALSE,echo=FALSE}
+#caricamento delle librerie
+
+library(dplyr)
+library(tidyverse)
+library(tidytext)
+library(stringr)
+library(topicmodels)
+library(scales)
+library(scales)
+library(textdata)
+library(SnowballC)
+library(plotly)
+```
+
+```{r,message=FALSE,warning=FALSE,echo=FALSE}
+#upload dei file txt dei saggi 
+
+The_Intelligent_Investor <- read.delim2("The_Intelligent_Investor.txt",header = FALSE, stringsAsFactors = FALSE) %>%
+  mutate(Book = "The Intelligent Investor")
+
+names(The_Intelligent_Investor)[1] <- "Text"
+
+tidyThe_Intelligent_Investor <- The_Intelligent_Investor %>%
+  mutate(linenumber = row_number())  %>%
+  unnest_tokens(word, Text) %>%
+  anti_join(stop_words, by = "word")
+
+Rich_Dad_Poor_Dad <- read.delim2("Rich-Dad-Poor-Dad.txt",header = FALSE, stringsAsFactors = FALSE) %>%
+  mutate(Book = "Rich Dad Poor Dad")
+
+names(Rich_Dad_Poor_Dad)[1] <- "Text"
+
+tidyRich_Dad_Poor_Dad <- Rich_Dad_Poor_Dad %>%
+  mutate(linenumber = row_number())  %>%
+  unnest_tokens(word, Text) %>%
+  anti_join(stop_words, by = "word")
+
+Think_And_Grow_Rich <- read.delim2("Think-And-Grow-Rich.txt",header = FALSE, stringsAsFactors = FALSE) %>%
+  mutate(Book = "Think And Grow Rich")
+
+colnames(Think_And_Grow_Rich)[1] <- "Text"
+
+tidyThink_And_Grow_Rich <- Think_And_Grow_Rich %>%
+  mutate(linenumber = row_number())  %>%
+  unnest_tokens(word, Text) %>%
+  anti_join(stop_words, by = "word")
+
+Good_Economics_for_Hard_Times <- read.delim2("Good_Economics_for_Hard_Times.txt",header = FALSE, stringsAsFactors = FALSE) %>%
+  mutate(Book = "Good Economics for Hard Times")
+
+colnames(Good_Economics_for_Hard_Times)[1] <- "Text"
+
+tidyGood_Economics_for_Hard_Times <- Good_Economics_for_Hard_Times %>%
+  mutate(linenumber = row_number())  %>%
+  unnest_tokens(word, Text) %>%
+  anti_join(stop_words, by = "word")
+
+#Join dei saggi in un unico dataset
+books <- full_join(full_join(full_join(tidyThink_And_Grow_Rich, tidyGood_Economics_for_Hard_Times, by = c("Book", "linenumber", "word")), tidyRich_Dad_Poor_Dad, by = c("Book", "linenumber", "word")), tidyThe_Intelligent_Investor, by = c("Book", "linenumber", "word"))
+```
+
+## Parole più freqenti
+
+```{r,message=FALSE,warning=FALSE,echo=FALSE}
+book_stemmed <- books %>%
+  mutate(word = wordStem(word))
+
+book_stemmed %>%
+  count(word, sort = TRUE) %>%
+  filter(n > 800, word !="â", word!="ï") %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(word, n, fill=n)) +
+  geom_col() +  xlab(NULL) +
+  coord_flip()
+```
+
+## I sentimenti più influenti nei saggi finanziari
+
+```{r,message=FALSE,warning=FALSE,echo=FALSE}
+sentiment <- books %>%
+  count(word) %>%
+  inner_join(get_sentiments("nrc"), by = "word") %>%
+  group_by(sentiment) %>%
+  summarise(n = n()) %>%
+  ungroup() %>%
+  arrange(-n)
+
+plot_ly(sentiment,
+  x = ~sentiment,
+  y = ~n,
+  name = "sentiment",
+  type = "bar",
+        marker = list(color = 'rgb(158,202,225)',
+                      line = list(color = 'rgb(8,48,107)',
+                                  width = 1.5))) %>% 
+  layout(title = "I sentimenti più influenti",
+         xaxis = list(title = ""),
+         yaxis = list(title = ""))
+```
+
+## Le parole più frequenti per i sentimenti più influenti
+
+```{r,message=FALSE,warning=FALSE,echo=FALSE}
+top1sentiment <- get_sentiments("nrc") %>%
+  filter(sentiment == "trust")
+
+top2sentiment <- get_sentiments("nrc") %>%
+filter(sentiment == "anger")
+
+top3sentiment <- get_sentiments("nrc") %>%
+filter(sentiment == "fear")
+
+top3s <- full_join(top1sentiment, top2sentiment) %>%
+  full_join(top3sentiment)
+
+books %>%
+  count(word) %>%
+  inner_join(top3s, by = "word") %>%
+  group_by(sentiment) %>%
+  top_n(8, n) %>%
+  ungroup() %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(word, n, fill = sentiment)) +
+  geom_col() +
+  coord_flip() +
+  facet_wrap(~ sentiment, scales = "free") +
+  labs(y = "Parole più frequent dei sentimenti più influenti", x = NULL)
+```
+
+## Parole positive e negative più frequenti
+
+```{r,message=FALSE,warning=FALSE,echo=FALSE}
+
+books %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  group_by(sentiment) %>%
+  top_n(8) %>%
+  ungroup() %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(word, n, fill = sentiment)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~sentiment, scales = "free_y") +
+  labs(y = "Le maggiori parole positive e negative", x = NULL) +
+  coord_flip()
+```
+
+## Distribuzione delle parole
+```{r,message=FALSE,warning=FALSE,echo=FALSE}
+books2 <-  full_join(full_join(full_join(Think_And_Grow_Rich, Good_Economics_for_Hard_Times), Rich_Dad_Poor_Dad), The_Intelligent_Investor)
+
+book_words <- books2 %>%
+  unnest_tokens(word, Text) %>%
+  count(Book, word, sort = TRUE) %>%
+  anti_join(stop_words)
+
+total_words <- book_words %>% 
+  group_by(Book) %>% 
+  summarize(total = sum(n))
+
+left_join(book_words, total_words) %>%
+  ggplot(aes(n / total, fill = Book)) +
+  geom_histogram(show.legend = FALSE) +
+  facet_wrap(~Book, ncol = 2, scales = "free_y")
+```
+
+## Legge di Zipf
+
+```{r,message=FALSE,warning=FALSE,echo=FALSE}
+book_words %>% 
+  group_by(Book) %>% 
+  mutate(rango = row_number(), `frequenza delle parole` = n/rango) %>% 
+  ggplot(aes(rango, `frequenza delle parole`, group = Book, color = Book)) + 
+  geom_line(size = 1.2, alpha = 0.7, show.legend = TRUE) + 
+  scale_x_log10() +
+  scale_y_log10()
+```
+
+## tf-idf - Parole più frequenti che caratterizzano il libro
+
+```{r,message=FALSE,warning=FALSE,echo=FALSE}
+book_words %>%
+  filter(word != "https", word != "ebook.com", word != "www.think", word != "ebook", word !="ï", word != "š", word != "download") %>%
+  bind_tf_idf(word, Book, n) %>%
+  arrange(desc(tf_idf)) %>%
+  group_by(Book) %>% 
+  top_n(7, tf_idf) %>% 
+  ungroup %>%
+  mutate(word = reorder(word, tf_idf)) %>%
+  ggplot(aes(word, tf_idf, fill = Book)) +
+  geom_col(show.legend = FALSE) +
+  labs(x = NULL, y = "tf-idf") +
+  facet_wrap(~Book, ncol = 2, scales = "free") +
+  coord_flip()
+```
+
+## Suddivisione in argomenti dei saggi
+
+```{r,message=FALSE,warning=FALSE,echo=FALSE}
+#
+#creazione di 2 argomenti con LDA
+book_lda <- books %>%
+  count(Book, word, sort = TRUE) %>%
+  cast_dtm(Book, word, n) %>% 
+  LDA(k = 2, control = list(seed = 1000))
+
+#Assegnazione degli argomenti a tutte le storie e selezione del solo argomento predominante
+tidy(book_lda, matrix = "gamma") %>%
+  group_by(document) %>%
+  top_n(1, gamma) %>%
+  ungroup() %>%
+  arrange(topic) %>%
+  ggplot(aes(x="", y=gamma, fill=document)) +
+  geom_bar(width = 1, stat = "identity", show.legend = TRUE) +
+  facet_wrap(~topic, ncol = 2)
+```
