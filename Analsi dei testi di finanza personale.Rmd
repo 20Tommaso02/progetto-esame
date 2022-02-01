@@ -1,9 +1,17 @@
 ---
 title: "Analisi dei testi di finanza personale"
 author: "Tommaso Bergagna"
-date: "10/08/2021"
+date: "02/02/2022"
 output: ioslides_presentation
 ---
+## Introduzione 
+   
+   text mining di quattro saggi economico/finanziari:
+   
+   1:The Intelligent Investor
+   2:Rich Dad Poor Dad
+   3:Think And Grow Rich
+   4:Good Economics for Hard Times
 
 ```{r,message=FALSE,warning=FALSE,echo=FALSE}
 #caricamento delle librerie
@@ -18,6 +26,7 @@ library(scales)
 library(textdata)
 library(SnowballC)
 library(plotly)
+ 
 ```
 
 ```{r,message=FALSE,warning=FALSE,echo=FALSE}
@@ -132,7 +141,7 @@ books %>%
   geom_col() +
   coord_flip() +
   facet_wrap(~ sentiment, scales = "free") +
-  labs(y = "Parole più frequent dei sentimenti più influenti", x = NULL)
+  labs(y = "Parole più frequenti per i sentimenti più influenti", x = NULL)
 ```
 
 ## Parole positive e negative più frequenti
@@ -202,23 +211,9 @@ book_words %>%
   coord_flip()
 ```
 
-## Suddivisione in argomenti dei saggi
+## Conclusioni
 
-```{r,message=FALSE,warning=FALSE,echo=FALSE}
-#
-#creazione di 2 argomenti con LDA
-book_lda <- books %>%
-  count(Book, word, sort = TRUE) %>%
-  cast_dtm(Book, word, n) %>% 
-  LDA(k = 2, control = list(seed = 1000))
 
-#Assegnazione degli argomenti a tutte le storie e selezione del solo argomento predominante
-tidy(book_lda, matrix = "gamma") %>%
-  group_by(document) %>%
-  top_n(1, gamma) %>%
-  ungroup() %>%
-  arrange(topic) %>%
-  ggplot(aes(x="", y=gamma, fill=document)) +
-  geom_bar(width = 1, stat = "identity", show.legend = TRUE) +
-  facet_wrap(~topic, ncol = 2)
-```
+
+   
+
